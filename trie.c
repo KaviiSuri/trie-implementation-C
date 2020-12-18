@@ -1,185 +1,249 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#define N 26
+typedef struct TrieNode TrieNode;
 
-#include "trie.h"
-
-// creates a new trie.
-struct trie *trie_create()
+struct TrieNode
 {
-    return malloc(sizeof(struct trie));
+
+    char data;
+    TrieNode *children[N];
+    int is_leaf;
+};
+
+TrieNode *make_trienode(char data)
+{
+    TrieNode *node = (TrieNode *)calloc(1, sizeof(TrieNode));
+    for (int i = 0; i < N; i++)
+        node->children[i] = NULL;
+    node->is_leaf = 0;
+    node->data = data;
+    return node;
 }
 
-// returns pointer to thing at key
-void *trie_traverse(struct trie *data, char *key)
+void free_trienode(TrieNode *node)
 {
-    struct trie *current_node = data;
 
-    // increment the pointer position of key until null terminator is reached
-    while (*key != 0)
+    for (int i = 0; i < N; i++)
     {
-        // try to find the correct child node
-        struct trie *next_node = current_node->children[*key];
-
-        // if next_node doesn't actually exist, return NULL
-        if (!next_node)
+        if (node->children[i] != NULL)
         {
-            return NULL;
+            free_trienode(node->children[i]);
         }
-
-        // set current node to the correct child node
-        current_node = next_node;
-
-        // increment key pointer position
-        key++;
-    }
-
-    return current_node;
-}
-
-// inserts val at key
-void *trie_insert(struct trie *data, char *key, void *val)
-{
-    struct trie *current_node = data;
-
-    // increment the pointer position of key until null terminator is reached
-    while (*key != 0)
-    {
-        // try to find the correct child node
-        struct trie *next_node = current_node->children[*key];
-
-        switch (current_node->type)
+        else
         {
-        case trienode_twig:
-            // if this twig goes in the same direction
-            if (next_node)
-            {
-                break;
-            }
-            // else it will promote to a branch
-        case trienode_leaf:
-            current_node->type++;
-        }
-
-        // if next_node doesn't actually exist, create it
-        if (!next_node)
-        {
-            current_node->children[*key] = trie_create();
-            next_node = current_node->children[*key];
-            if (trienode_twig == current_node->type)
-            {
-                // children[0] is never used; we'll hijack it as a fast-forward key
-                *current_node->children = next_node;
-            }
-        }
-
-        // set current node to the correct child node
-        current_node = next_node;
-
-        // increment key pointer position
-        key++;
-    }
-
-    // set val at current_node
-    current_node->val = val;
-
-    return current_node;
-}
-
-// returns void pointer of thing at key
-void *trie_lookup(struct trie *data, char *key)
-{
-    struct trie *current_node = trie_traverse(data, key);
-
-    if (!current_node)
-    {
-        return NULL;
-    }
-
-    return current_node->val;
-}
-
-// If there is only one key that maches the given `char* prefix`, returns its value. If there are several, returns the given `void* ambiguous`, if there are none, returns null.
-void *trie_lookup_prefix(struct trie *data, char *prefix, void *ambiguous)
-{
-    struct trie *current_node = trie_traverse(data, prefix);
-
-    if (!current_node)
-    {
-        return NULL;
-    }
-
-    // exact match
-    if (NULL != current_node->val)
-    {
-        return current_node->val;
-    }
-
-    // prefix matched, but we still have to find the key itself
-    while (NULL == current_node->val)
-    {
-        switch (current_node->type)
-        {
-        case trienode_leaf:
-            // we can do nothing but return null
-            return current_node->val;
-        case trienode_twig:
-            // fast-forward to the next (only) child
-            current_node = *current_node->children;
             continue;
-        case trienode_branch:
-            return ambiguous;
         }
     }
-
-    // we found a key with the requested prefix, but there are more
-    if (trienode_twig == current_node->type)
-    {
-        return ambiguous;
-    }
-
-    return current_node->val;
+    free(node);
 }
 
-// removes thing at key
-void trie_remove(struct trie *data, char *key)
+TrieNode *insert_trie(TrieNode *root, char *word)
 {
-    struct trie *current_node = data;
 
-    // increment the pointer position of key until null terminator is reached
-    while (*key != 0)
+    TrieNode *temp = root;
+
+    for (int i = 0; word[i] != '\0'; i++)
     {
-        // try to find the correct child node
-        struct trie *next_node = current_node->children[*key];
 
-        // if next_node doesn't actually exist, return NULL
-        if (!next_node)
+        int idx = (int)word[i] - 'a';
+        if (temp->children[idx] == NULL)
         {
-            return;
+            temp->children[idx] = make_trienode(word[i]);
         }
-
-        // set current node to the correct child node
-        current_node = next_node;
-
-        // increment key pointer position
-        key++;
+        else
+        {
+            // Do nothing. The node already exists
+        }
+        temp = temp->children[idx];
     }
-
-    free(current_node->val);
-    return;
+    temp->is_leaf = 1;
+    return root;
 }
 
-// destroys trie at pointer
-void trie_destroy(struct trie *data)
+int search_trie(TrieNode *root, char *word)
 {
-    int a;
-    for (a = 1; a < 256; a++)
+    TrieNode *temp = root;
+
+    for (int i = 0; word[i] != '\0'; i++)
     {
-        if (data->children[a])
+        int position = word[i] - 'a';
+        if (temp->children[position] == NULL)
+            return 0;
+        temp = temp->children[position];
+    }
+    if (temp != NULL && temp->is_leaf == 1)
+        return 1;
+    return 0;
+}
+
+int check_divergence(TrieNode *root, char *word)
+{
+    TrieNode *temp = root;
+    int len = strlen(word);
+    if (len == 0)
+        return 0;
+    int last_index = 0;
+    for (int i = 0; i < len; i++)
+    {
+        int position = word[i] - 'a';
+        if (temp->children[position])
         {
-            trie_destroy(data->children[a]);
+            for (int j = 0; j < N; j++)
+            {
+                if (j != position && temp->children[j])
+                {
+                    last_index = i + 1;
+                    break;
+                }
+            }
+            temp = temp->children[position];
+        }
+    }
+    return last_index;
+}
+
+char *find_longest_prefix(TrieNode *root, char *word)
+{
+    if (!word || word[0] == '\0')
+        return NULL;
+    int len = strlen(word);
+    char *longest_prefix = (char *)calloc(len + 1, sizeof(char));
+    for (int i = 0; word[i] != '\0'; i++)
+        longest_prefix[i] = word[i];
+    longest_prefix[len] = '\0';
+    int branch_idx = check_divergence(root, longest_prefix) - 1;
+    if (branch_idx >= 0)
+    {
+        longest_prefix[branch_idx] = '\0';
+        longest_prefix = (char *)realloc(longest_prefix, (branch_idx + 1) * sizeof(char));
+    }
+
+    return longest_prefix;
+}
+
+int is_leaf_node(TrieNode *root, char *word)
+{
+    TrieNode *temp = root;
+    for (int i = 0; word[i]; i++)
+    {
+        int position = (int)word[i] - 'a';
+        if (temp->children[position])
+        {
+            temp = temp->children[position];
+        }
+    }
+    return temp->is_leaf;
+}
+
+TrieNode *delete_trie(TrieNode *root, char *word)
+{
+    if (!root)
+        return NULL;
+    if (!word || word[0] == '\0')
+        return root;
+    if (!is_leaf_node(root, word))
+    {
+        return root;
+    }
+    TrieNode *temp = root;
+    char *longest_prefix = find_longest_prefix(root, word);
+    if (longest_prefix[0] == '\0')
+    {
+        free(longest_prefix);
+        return root;
+    }
+    int i;
+    for (i = 0; longest_prefix[i] != '\0'; i++)
+    {
+        int position = (int)longest_prefix[i] - 'a';
+        if (temp->children[position] != NULL)
+        {
+
+            temp = temp->children[position];
+        }
+        else
+        {
+
+            free(longest_prefix);
+            return root;
         }
     }
 
-    free(data);
-    return;
+    int len = strlen(word);
+    for (; i < len; i++)
+    {
+        int position = (int)word[i] - 'a';
+        if (temp->children[position])
+        {
+            TrieNode *rm_node = temp->children[position];
+            temp->children[position] = NULL;
+            free_trienode(rm_node);
+        }
+    }
+    free(longest_prefix);
+    return root;
+}
+
+void print_trie(TrieNode *root)
+{
+    if (!root)
+        return;
+    TrieNode *temp = root;
+    printf("%c -> ", temp->data);
+    for (int i = 0; i < N; i++)
+    {
+        print_trie(temp->children[i]);
+    }
+}
+
+void print_search(TrieNode *root, char *word)
+{
+    printf("Searching for %s: ", word);
+    if (search_trie(root, word) == 0)
+        printf("Not Found\n");
+    else
+        printf("Found!\n");
+}
+
+int main()
+{
+    // Driver program for the Trie Data Structure Operations
+    TrieNode *root = make_trienode('\0');
+    int ch;
+    do
+    {
+        printf("\n\n--------Menu-----------\n");
+        printf(" 1.Insert_trie\n 2.Search\n 3.print_trie\n 4.Delete\n 5.Exit\n");
+        printf("-------------------------------");
+        printf("\nEnter your choice: ");
+        scanf("%d", &ch);
+        switch (ch)
+        {
+        case 1:
+        {
+            root = insert_trie(root, "hello");
+            break;
+        }
+
+        case 2:
+            print_search(root, "hello");
+            break;
+        case 3:
+            print_trie(root);
+            break;
+        case 4:
+            root = delete_trie(root, "hello");
+            break;
+        case 5:
+            free_trienode(root);
+            exit(0);
+            break;
+        default:
+            printf("\nInvalid choice:\n");
+            break;
+        }
+    } while (ch != 5);
+    return 0;
 }
