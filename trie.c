@@ -1,154 +1,185 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define CHAR_SIZE 26
+#include "trie.h"
 
-struct Trie
+// creates a new trie.
+struct trie *trie_create()
 {
-    int isLeaf;
-    struct Trie *character[CHAR_SIZE];
-};
-
-// Function that returns a new Trie node
-struct Trie *getNewTrieNode()
-{
-    struct Trie *node = (struct Trie *)malloc(sizeof(struct Trie));
-    node->isLeaf = 0;
-
-    for (int i = 0; i < CHAR_SIZE; i++)
-        node->character[i] = NULL;
-
-    return node;
+    return malloc(sizeof(struct trie));
 }
 
-// function to insert a string in Trie
-void insert(struct Trie *head, char *str)
+// returns pointer to thing at key
+void *trie_traverse(struct trie *data, char *key)
 {
-    struct Trie *curr = head;
-    while (*str)
+    struct trie *current_node = data;
+
+    // increment the pointer position of key until null terminator is reached
+    while (*key != 0)
     {
-        if (curr->character[*str - 'a'] == NULL)
-            curr->character[*str - 'a'] = getNewTrieNode();
-        curr = curr->character[*str - 'a'];
-        str++;
-    }
-    curr->isLeaf = 1;
-}
+        // try to find the correct child node
+        struct trie *next_node = current_node->children[*key];
 
-// function to search a string in Trie. It returns 1
-// if the string is found in the Trie, else it returns 0
-int search(struct Trie *head, char *str)
-{
-    if (head == NULL)
-        return 0;
-
-    struct Trie *curr = head;
-    while (*str)
-    {
-        curr = curr->character[*str - 'a'];
-
-        if (curr == NULL)
-            return 0;
-
-        str++;
-    }
-
-    return curr->isLeaf;
-}
-
-// returns 1 if given node has any children
-int haveChildren(struct Trie *curr)
-{
-    for (int i = 0; i < CHAR_SIZE; i++)
-        if (curr->character[i])
-            return 1;
-
-    return 0;
-}
-
-// function to delete a string in Trie
-int deletion(struct Trie **curr, char *str)
-{
-    if (*curr == NULL)
-        return 0;
-
-    if (*str)
-    {
-        if (*curr != NULL && (*curr)->character[*str - 'a'] != NULL &&
-            deletion(&((*curr)->character[*str - 'a']), str + 1) &&
-            (*curr)->isLeaf == 0)
+        // if next_node doesn't actually exist, return NULL
+        if (!next_node)
         {
-            if (!haveChildren(*curr))
+            return NULL;
+        }
+
+        // set current node to the correct child node
+        current_node = next_node;
+
+        // increment key pointer position
+        key++;
+    }
+
+    return current_node;
+}
+
+// inserts val at key
+void *trie_insert(struct trie *data, char *key, void *val)
+{
+    struct trie *current_node = data;
+
+    // increment the pointer position of key until null terminator is reached
+    while (*key != 0)
+    {
+        // try to find the correct child node
+        struct trie *next_node = current_node->children[*key];
+
+        switch (current_node->type)
+        {
+        case trienode_twig:
+            // if this twig goes in the same direction
+            if (next_node)
             {
-                free(*curr);
-                (*curr) = NULL;
-                return 1;
+                break;
             }
-            else
+            // else it will promote to a branch
+        case trienode_leaf:
+            current_node->type++;
+        }
+
+        // if next_node doesn't actually exist, create it
+        if (!next_node)
+        {
+            current_node->children[*key] = trie_create();
+            next_node = current_node->children[*key];
+            if (trienode_twig == current_node->type)
             {
-                return 0;
+                // children[0] is never used; we'll hijack it as a fast-forward key
+                *current_node->children = next_node;
             }
         }
+
+        // set current node to the correct child node
+        current_node = next_node;
+
+        // increment key pointer position
+        key++;
     }
 
-    if (*str == '\0' && (*curr)->isLeaf)
-    {
-        if (!haveChildren(*curr))
-        {
-            free(*curr);
-            (*curr) = NULL;
-            return 1;
-        }
+    // set val at current_node
+    current_node->val = val;
 
-        else
-        {
-            (*curr)->isLeaf = 0;
-            return 0;
-        }
-    }
-
-    return 0;
+    return current_node;
 }
 
-int main()
+// returns void pointer of thing at key
+void *trie_lookup(struct trie *data, char *key)
 {
-    struct Trie *head = getNewTrieNode();
+    struct trie *current_node = trie_traverse(data, key);
 
-    insert(head, "hello");
-    printf("%d ", search(head, "hello")); // print 1
+    if (!current_node)
+    {
+        return NULL;
+    }
 
-    insert(head, "helloworld");
-    printf("%d ", search(head, "helloworld")); // print 1
+    return current_node->val;
+}
 
-    printf("%d ", search(head, "helll")); // print 0 (Not present)
+// If there is only one key that maches the given `char* prefix`, returns its value. If there are several, returns the given `void* ambiguous`, if there are none, returns null.
+void *trie_lookup_prefix(struct trie *data, char *prefix, void *ambiguous)
+{
+    struct trie *current_node = trie_traverse(data, prefix);
 
-    insert(head, "hell");
-    printf("%d ", search(head, "hell")); // print 1
+    if (!current_node)
+    {
+        return NULL;
+    }
 
-    insert(head, "h");
-    printf("%d \n", search(head, "h")); // print 1 + newline
+    // exact match
+    if (NULL != current_node->val)
+    {
+        return current_node->val;
+    }
 
-    deletion(&head, "hello");
-    printf("%d ", search(head, "hello"));      // print 0 (hello deleted)
-    printf("%d ", search(head, "helloworld")); // print 1
-    printf("%d \n", search(head, "hell"));     // print 1 + newline
+    // prefix matched, but we still have to find the key itself
+    while (NULL == current_node->val)
+    {
+        switch (current_node->type)
+        {
+        case trienode_leaf:
+            // we can do nothing but return null
+            return current_node->val;
+        case trienode_twig:
+            // fast-forward to the next (only) child
+            current_node = *current_node->children;
+            continue;
+        case trienode_branch:
+            return ambiguous;
+        }
+    }
 
-    deletion(&head, "h");
-    printf("%d ", search(head, "h"));           // print 0 (h deleted)
-    printf("%d ", search(head, "hell"));        // print 1
-    printf("%d\n", search(head, "helloworld")); // print 1 + newline
+    // we found a key with the requested prefix, but there are more
+    if (trienode_twig == current_node->type)
+    {
+        return ambiguous;
+    }
 
-    deletion(&head, "helloworld");
-    printf("%d ", search(head, "helloworld")); // print 0
-    printf("%d ", search(head, "hell"));       // print 1
+    return current_node->val;
+}
 
-    deletion(&head, "hell");
-    printf("%d\n", search(head, "hell")); // print 0 + newline
+// removes thing at key
+void trie_remove(struct trie *data, char *key)
+{
+    struct trie *current_node = data;
 
-    if (head == NULL)
-        printf("Trie empty!!\n"); // Trie is empty now
+    // increment the pointer position of key until null terminator is reached
+    while (*key != 0)
+    {
+        // try to find the correct child node
+        struct trie *next_node = current_node->children[*key];
 
-    printf("%d ", search(head, "hell")); // print 0
+        // if next_node doesn't actually exist, return NULL
+        if (!next_node)
+        {
+            return;
+        }
 
-    return 0;
+        // set current node to the correct child node
+        current_node = next_node;
+
+        // increment key pointer position
+        key++;
+    }
+
+    free(current_node->val);
+    return;
+}
+
+// destroys trie at pointer
+void trie_destroy(struct trie *data)
+{
+    int a;
+    for (a = 1; a < 256; a++)
+    {
+        if (data->children[a])
+        {
+            trie_destroy(data->children[a]);
+        }
+    }
+
+    free(data);
+    return;
 }
