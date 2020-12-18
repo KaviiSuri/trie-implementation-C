@@ -26,7 +26,7 @@ void free_trienode(TrieNode *node)
     }
     free(node);
 }
-
+// Time complexity = O(L)
 TrieNode *insert_trie(TrieNode *root, char *word)
 {
 
@@ -49,7 +49,7 @@ TrieNode *insert_trie(TrieNode *root, char *word)
     temp->is_leaf = 1;
     return root;
 }
-
+// Time complexity = O(L)
 int search_trie(TrieNode *root, char *word)
 {
     TrieNode *temp = root;
@@ -124,7 +124,7 @@ int is_leaf_node(TrieNode *root, char *word)
     }
     return temp->is_leaf;
 }
-
+// Time complexity = O(L)
 TrieNode *delete_trie(TrieNode *root, char *word)
 {
     if (!root)
