@@ -1,154 +1,249 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#define N 26
+typedef struct TrieNode TrieNode;
 
-#define CHAR_SIZE 26
-
-struct Trie
+struct TrieNode
 {
-    int isLeaf;
-    struct Trie *character[CHAR_SIZE];
+
+    char data;
+    TrieNode *children[N];
+    int is_leaf;
 };
 
-// Function that returns a new Trie node
-struct Trie *getNewTrieNode()
+TrieNode *make_trienode(char data)
 {
-    struct Trie *node = (struct Trie *)malloc(sizeof(struct Trie));
-    node->isLeaf = 0;
-
-    for (int i = 0; i < CHAR_SIZE; i++)
-        node->character[i] = NULL;
-
+    TrieNode *node = (TrieNode *)calloc(1, sizeof(TrieNode));
+    for (int i = 0; i < N; i++)
+        node->children[i] = NULL;
+    node->is_leaf = 0;
+    node->data = data;
     return node;
 }
 
-// function to insert a string in Trie
-void insert(struct Trie *head, char *str)
+void free_trienode(TrieNode *node)
 {
-    struct Trie *curr = head;
-    while (*str)
+
+    for (int i = 0; i < N; i++)
     {
-        if (curr->character[*str - 'a'] == NULL)
-            curr->character[*str - 'a'] = getNewTrieNode();
-        curr = curr->character[*str - 'a'];
-        str++;
-    }
-    curr->isLeaf = 1;
-}
-
-// function to search a string in Trie. It returns 1
-// if the string is found in the Trie, else it returns 0
-int search(struct Trie *head, char *str)
-{
-    if (head == NULL)
-        return 0;
-
-    struct Trie *curr = head;
-    while (*str)
-    {
-        curr = curr->character[*str - 'a'];
-
-        if (curr == NULL)
-            return 0;
-
-        str++;
-    }
-
-    return curr->isLeaf;
-}
-
-// returns 1 if given node has any children
-int haveChildren(struct Trie *curr)
-{
-    for (int i = 0; i < CHAR_SIZE; i++)
-        if (curr->character[i])
-            return 1;
-
-    return 0;
-}
-
-// function to delete a string in Trie
-int deletion(struct Trie **curr, char *str)
-{
-    if (*curr == NULL)
-        return 0;
-
-    if (*str)
-    {
-        if (*curr != NULL && (*curr)->character[*str - 'a'] != NULL &&
-            deletion(&((*curr)->character[*str - 'a']), str + 1) &&
-            (*curr)->isLeaf == 0)
+        if (node->children[i] != NULL)
         {
-            if (!haveChildren(*curr))
-            {
-                free(*curr);
-                (*curr) = NULL;
-                return 1;
-            }
-            else
-            {
-                return 0;
-            }
+            free_trienode(node->children[i]);
         }
-    }
-
-    if (*str == '\0' && (*curr)->isLeaf)
-    {
-        if (!haveChildren(*curr))
-        {
-            free(*curr);
-            (*curr) = NULL;
-            return 1;
-        }
-
         else
         {
-            (*curr)->isLeaf = 0;
+            continue;
+        }
+    }
+    free(node);
+}
+
+TrieNode *insert_trie(TrieNode *root, char *word)
+{
+
+    TrieNode *temp = root;
+
+    for (int i = 0; word[i] != '\0'; i++)
+    {
+
+        int idx = (int)word[i] - 'a';
+        if (temp->children[idx] == NULL)
+        {
+            temp->children[idx] = make_trienode(word[i]);
+        }
+        else
+        {
+            // Do nothing. The node already exists
+        }
+        temp = temp->children[idx];
+    }
+    temp->is_leaf = 1;
+    return root;
+}
+
+int search_trie(TrieNode *root, char *word)
+{
+    TrieNode *temp = root;
+
+    for (int i = 0; word[i] != '\0'; i++)
+    {
+        int position = word[i] - 'a';
+        if (temp->children[position] == NULL)
             return 0;
+        temp = temp->children[position];
+    }
+    if (temp != NULL && temp->is_leaf == 1)
+        return 1;
+    return 0;
+}
+
+int check_divergence(TrieNode *root, char *word)
+{
+    TrieNode *temp = root;
+    int len = strlen(word);
+    if (len == 0)
+        return 0;
+    int last_index = 0;
+    for (int i = 0; i < len; i++)
+    {
+        int position = word[i] - 'a';
+        if (temp->children[position])
+        {
+            for (int j = 0; j < N; j++)
+            {
+                if (j != position && temp->children[j])
+                {
+                    last_index = i + 1;
+                    break;
+                }
+            }
+            temp = temp->children[position];
+        }
+    }
+    return last_index;
+}
+
+char *find_longest_prefix(TrieNode *root, char *word)
+{
+    if (!word || word[0] == '\0')
+        return NULL;
+    int len = strlen(word);
+    char *longest_prefix = (char *)calloc(len + 1, sizeof(char));
+    for (int i = 0; word[i] != '\0'; i++)
+        longest_prefix[i] = word[i];
+    longest_prefix[len] = '\0';
+    int branch_idx = check_divergence(root, longest_prefix) - 1;
+    if (branch_idx >= 0)
+    {
+        longest_prefix[branch_idx] = '\0';
+        longest_prefix = (char *)realloc(longest_prefix, (branch_idx + 1) * sizeof(char));
+    }
+
+    return longest_prefix;
+}
+
+int is_leaf_node(TrieNode *root, char *word)
+{
+    TrieNode *temp = root;
+    for (int i = 0; word[i]; i++)
+    {
+        int position = (int)word[i] - 'a';
+        if (temp->children[position])
+        {
+            temp = temp->children[position];
+        }
+    }
+    return temp->is_leaf;
+}
+
+TrieNode *delete_trie(TrieNode *root, char *word)
+{
+    if (!root)
+        return NULL;
+    if (!word || word[0] == '\0')
+        return root;
+    if (!is_leaf_node(root, word))
+    {
+        return root;
+    }
+    TrieNode *temp = root;
+    char *longest_prefix = find_longest_prefix(root, word);
+    if (longest_prefix[0] == '\0')
+    {
+        free(longest_prefix);
+        return root;
+    }
+    int i;
+    for (i = 0; longest_prefix[i] != '\0'; i++)
+    {
+        int position = (int)longest_prefix[i] - 'a';
+        if (temp->children[position] != NULL)
+        {
+
+            temp = temp->children[position];
+        }
+        else
+        {
+
+            free(longest_prefix);
+            return root;
         }
     }
 
-    return 0;
+    int len = strlen(word);
+    for (; i < len; i++)
+    {
+        int position = (int)word[i] - 'a';
+        if (temp->children[position])
+        {
+            TrieNode *rm_node = temp->children[position];
+            temp->children[position] = NULL;
+            free_trienode(rm_node);
+        }
+    }
+    free(longest_prefix);
+    return root;
+}
+
+void print_trie(TrieNode *root)
+{
+    if (!root)
+        return;
+    TrieNode *temp = root;
+    printf("%c -> ", temp->data);
+    for (int i = 0; i < N; i++)
+    {
+        print_trie(temp->children[i]);
+    }
+}
+
+void print_search(TrieNode *root, char *word)
+{
+    printf("Searching for %s: ", word);
+    if (search_trie(root, word) == 0)
+        printf("Not Found\n");
+    else
+        printf("Found!\n");
 }
 
 int main()
 {
-    struct Trie *head = getNewTrieNode();
+    // Driver program for the Trie Data Structure Operations
+    TrieNode *root = make_trienode('\0');
+    int ch;
+    do
+    {
+        printf("\n\n--------Menu-----------\n");
+        printf(" 1.Insert_trie\n 2.Search\n 3.print_trie\n 4.Delete\n 5.Exit\n");
+        printf("-------------------------------");
+        printf("\nEnter your choice: ");
+        scanf("%d", &ch);
+        switch (ch)
+        {
+        case 1:
+        {
+            root = insert_trie(root, "hello");
+            break;
+        }
 
-    insert(head, "hello");
-    printf("%d ", search(head, "hello")); // print 1
-
-    insert(head, "helloworld");
-    printf("%d ", search(head, "helloworld")); // print 1
-
-    printf("%d ", search(head, "helll")); // print 0 (Not present)
-
-    insert(head, "hell");
-    printf("%d ", search(head, "hell")); // print 1
-
-    insert(head, "h");
-    printf("%d \n", search(head, "h")); // print 1 + newline
-
-    deletion(&head, "hello");
-    printf("%d ", search(head, "hello"));      // print 0 (hello deleted)
-    printf("%d ", search(head, "helloworld")); // print 1
-    printf("%d \n", search(head, "hell"));     // print 1 + newline
-
-    deletion(&head, "h");
-    printf("%d ", search(head, "h"));           // print 0 (h deleted)
-    printf("%d ", search(head, "hell"));        // print 1
-    printf("%d\n", search(head, "helloworld")); // print 1 + newline
-
-    deletion(&head, "helloworld");
-    printf("%d ", search(head, "helloworld")); // print 0
-    printf("%d ", search(head, "hell"));       // print 1
-
-    deletion(&head, "hell");
-    printf("%d\n", search(head, "hell")); // print 0 + newline
-
-    if (head == NULL)
-        printf("Trie empty!!\n"); // Trie is empty now
-
-    printf("%d ", search(head, "hell")); // print 0
-
+        case 2:
+            print_search(root, "hello");
+            break;
+        case 3:
+            print_trie(root);
+            break;
+        case 4:
+            root = delete_trie(root, "hello");
+            break;
+        case 5:
+            free_trienode(root);
+            exit(0);
+            break;
+        default:
+            printf("\nInvalid choice:\n");
+            break;
+        }
+    } while (ch != 5);
     return 0;
 }
