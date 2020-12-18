@@ -1,93 +1,154 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
 
-#include "utils.c"
+#define CHAR_SIZE 26
 
-#define ALPHABET_SIZE 26
-#define ALPHABET_ROOT 'a'
-
-typedef struct TrieNode
+struct Trie
 {
-    struct TrieNode *children[ALPHABET_SIZE];
-    char data;
-    bool word_end;
-} TrieNode;
+    int isLeaf;
+    struct Trie *character[CHAR_SIZE];
+};
 
-// Create A New Node
-TrieNode *createTrieNode()
+// Function that returns a new Trie node
+struct Trie *getNewTrieNode()
 {
-    TrieNode *node;
-    node = malloc(sizeof(TrieNode));
-    node->word_end = false;
-    int i = 0;
-    while (i < ALPHABET_SIZE)
-    {
-        node->children[i] = NULL;
-        i++;
-    }
+    struct Trie *node = (struct Trie *)malloc(sizeof(struct Trie));
+    node->isLeaf = 0;
+
+    for (int i = 0; i < CHAR_SIZE; i++)
+        node->character[i] = NULL;
+
     return node;
 }
-// Insert word in a given trie
-// Time Complexity O(L) where L is Lenght of single word
-void insert(TrieNode *root, char *word)
+
+// function to insert a string in Trie
+void insert(struct Trie *head, char *str)
 {
-    char data = *word;
-    if ((strlen(word - 1) != 0))
+    struct Trie *curr = head;
+    while (*str)
     {
-        if (root->children[data - ALPHABET_ROOT] == NULL)
-        {
-            TrieNode *node = NULL;
-            node = createTrieNode();
-            node->data = data;
-            root->children[data - ALPHABET_ROOT] = node;
-        }
-        word++;
-        insert(root->children[data - ALPHABET_ROOT], word);
+        if (curr->character[*str - 'a'] == NULL)
+            curr->character[*str - 'a'] = getNewTrieNode();
+        curr = curr->character[*str - 'a'];
+        str++;
     }
-    else
-    {
-        root->word_end = true;
-    }
-    return;
+    curr->isLeaf = 1;
 }
 
-// Search a word in the Trie
-// Time Complexity O(L) where L is Lenght of single word
-TrieNode *search(TrieNode *root, char *word)
+// function to search a string in Trie. It returns 1
+// if the string is found in the Trie, else it returns 0
+int search(struct Trie *head, char *str)
 {
-    TrieNode *temp;
-    while (*word != '\0')
+    if (head == NULL)
+        return 0;
+
+    struct Trie *curr = head;
+    while (*str)
     {
-        char data = *word;
-        if (root->children[data - ALPHABET_ROOT] != NULL)
+        curr = curr->character[*str - 'a'];
+
+        if (curr == NULL)
+            return 0;
+
+        str++;
+    }
+
+    return curr->isLeaf;
+}
+
+// returns 1 if given node has any children
+int haveChildren(struct Trie *curr)
+{
+    for (int i = 0; i < CHAR_SIZE; i++)
+        if (curr->character[i])
+            return 1;
+
+    return 0;
+}
+
+// function to delete a string in Trie
+int deletion(struct Trie **curr, char *str)
+{
+    if (*curr == NULL)
+        return 0;
+
+    if (*str)
+    {
+        if (*curr != NULL && (*curr)->character[*str - 'a'] != NULL &&
+            deletion(&((*curr)->character[*str - 'a']), str + 1) &&
+            (*curr)->isLeaf == 0)
         {
-            temp = root->children[data - ALPHABET_ROOT];
-            word++;
-            root = temp;
+            if (!haveChildren(*curr))
+            {
+                free(*curr);
+                (*curr) = NULL;
+                return 1;
+            }
+            else
+            {
+                return 0;
+            }
         }
+    }
+
+    if (*str == '\0' && (*curr)->isLeaf)
+    {
+        if (!haveChildren(*curr))
+        {
+            free(*curr);
+            (*curr) = NULL;
+            return 1;
+        }
+
         else
         {
-            printf("No Possible words!!\n");
-            return NULL;
+            (*curr)->isLeaf = 0;
+            return 0;
         }
     }
+
+    return 0;
 }
 
-void printPathsRecur(TrieNode *node, char prefix[], int len_till_now)
+int main()
 {
-    if (node == NULL)
-        return;
-    prefix[len_till_now] = node->data;
-    len_till_now++;
-    if (node->word_end)
-    {
-        printArray(prefix, len_till_now);
-    }
-    int i;
-    for (i = 0; i < ALPHABET_SIZE; i++)
-    {
-        printPathsRecur(node->children[i], prefix, len_till_now);
-    }
+    struct Trie *head = getNewTrieNode();
+
+    insert(head, "hello");
+    printf("%d ", search(head, "hello")); // print 1
+
+    insert(head, "helloworld");
+    printf("%d ", search(head, "helloworld")); // print 1
+
+    printf("%d ", search(head, "helll")); // print 0 (Not present)
+
+    insert(head, "hell");
+    printf("%d ", search(head, "hell")); // print 1
+
+    insert(head, "h");
+    printf("%d \n", search(head, "h")); // print 1 + newline
+
+    deletion(&head, "hello");
+    printf("%d ", search(head, "hello"));      // print 0 (hello deleted)
+    printf("%d ", search(head, "helloworld")); // print 1
+    printf("%d \n", search(head, "hell"));     // print 1 + newline
+
+    deletion(&head, "h");
+    printf("%d ", search(head, "h"));           // print 0 (h deleted)
+    printf("%d ", search(head, "hell"));        // print 1
+    printf("%d\n", search(head, "helloworld")); // print 1 + newline
+
+    deletion(&head, "helloworld");
+    printf("%d ", search(head, "helloworld")); // print 0
+    printf("%d ", search(head, "hell"));       // print 1
+
+    deletion(&head, "hell");
+    printf("%d\n", search(head, "hell")); // print 0 + newline
+
+    if (head == NULL)
+        printf("Trie empty!!\n"); // Trie is empty now
+
+    printf("%d ", search(head, "hell")); // print 0
+
+    return 0;
 }
